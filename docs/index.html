@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+
+    <title>Persistence in Event-Driven Architecture</title>
+
+    <meta name="description" content="Persistence in Event-Driven Architecture">
+
+          <meta name="author" content="Samir Halilčević" />
+    
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <link rel="stylesheet" href="https://revealjs.com/css/reveal.css">
+    <style type="text/css">
+      section.level2 > h2 {font-size: 125%;}
+      section.level1 > h2 {font-size: 150%;}
+      code{white-space: pre-wrap;}
+      span.smallcaps{font-variant: small-caps;}
+      span.underline{text-decoration: underline;}
+      div.column{display: table-cell; vertical-align: middle; text-align: center; margin: auto;}
+    </style>
+          <link rel="stylesheet" href="https://revealjs.com/css/theme/moon.css" id="theme">
+    
+    <!-- For syntax highlighting -->
+          <link rel="stylesheet" href="https://revealjs.com/lib/css/zenburn.css">
+    
+    <!-- If the query includes 'print-pdf', use the PDF print sheet -->
+    <script>
+      document.write( '<link rel="stylesheet" href="https://revealjs.com/css/print/' +
+        ( window.location.search.match( /print-pdf/gi ) ? 'pdf' : 'paper' ) +
+        '.css" type="text/css" media="print">' );
+    </script>
+
+      </head>
+
+  <body>
+    
+    <div class="reveal">
+      <!-- Any section element inside of this container is displayed as a slide -->
+      <div class="slides">
+        <section>
+          <h3>Persistence in Event-Driven Architecture</h3>
+                      <h4>Samir Halilčević</h4>
+                    <p>
+            <h5>Marvelsoft, 2019-10-17</h5>
+          </p>
+        </section>
+
+        
+        <section id="section" class="level3">
+        <h3></h3>
+        <p><img src="img/technologies.webp" /></p>
+        </section>
+        <section id="hello" class="level3">
+        <h3>Hello</h3>
+        <ul>
+        <li>Samir Halilčević, programmer,</li>
+        <li>been at Marvelsoft for about one year,</li>
+        <li>main tasks are the content of this presentation,</li>
+        <li>not alone, work of multiple great people</li>
+        </ul>
+        </section>
+        <section id="what-is-event-driven-anyway" class="level3">
+        <h3>What is ‘Event-Driven’ anyway?</h3>
+        <ul>
+        <li>Events are the driving force in the app,</li>
+        <li>Everything that happens is a reaction to some outside action</li>
+        <li>Application sleeps until something interesting happens</li>
+        </ul>
+        </section>
+        <section id="network-event" class="level3">
+        <h3>Network event</h3>
+        <ul>
+        <li>Classic approach</li>
+        </ul>
+        <pre><code>
+        char[] buffer
+        loop {
+          // sleep(10ms)
+          if socket.try_read(buffer) {
+            do_work(buffer) 
+          }
+        }
+        </code></pre>
+        </section>
+        <section id="network-event-1" class="level3">
+        <h3>Network event</h3>
+        <ul>
+        <li>Event driven approach</li>
+        </ul>
+        <pre><code>
+        let f = socket.into_future().and_then(do_work)
+        reactor.start(f)
+        </code></pre>
+        </section>
+        <section id="disclaimer" class="level3">
+        <h3>DISCLAIMER</h3>
+        <ul>
+        <li>There are a thousand ways to do event-driven,</li>
+        <li>and a hundred ways to do persistence!</li>
+        <li>This is just our take on things…</li>
+        </ul>
+        </section>
+        <section id="how-we-approached-it" class="level3">
+        <h3>How we approached it:</h3>
+        <blockquote>
+        <p>don’t communicate by sharing memory; share memory by communicating.</p>
+        <p>Rob Pike</p>
+        </blockquote>
+        <ul>
+        <li>All events are messages,</li>
+        <li>Messages flow through the system,</li>
+        <li>Only messages induce state changes.</li>
+        </ul>
+        </section>
+        <section id="how-to-detach-it-to-threads" class="level3">
+        <h3>How to detach it to threads?</h3>
+        <pre><code>
+        class State {
+          handle(string s) {
+            println(s)
+          }
+        }
+        
+        let state = State::new()
+        for line in stdin.lock() {
+          state.handle(s)
+        }
+        </code></pre>
+        </section>
+        <section id="how-to-detach-it-to-threads-1" class="level3">
+        <h3>How to detach it to threads?</h3>
+        <pre><code>
+        let state = State::new()
+        let mailbox = Queue::new()
+        Thread::new(|| {
+          for line in stdin.lines() {
+            mailbox.push(line)
+          }
+        });
+        Thread::new(|| {
+          for msg in mailbox.next() {
+            state.handle(msg)
+          }
+        });
+        </code></pre>
+        </section>
+        <section id="queue-mailbox" class="level3">
+        <h3>Queue == Mailbox?</h3>
+        <ul>
+        <li>Mailbox = Queue with multiple write points, one read point,</li>
+        <li>Thread blocks until a message arrives,</li>
+        <li>The state of the object is handled only in one thread.</li>
+        </ul>
+        </section>
+        <section id="and-we-have-created-an-actor" class="level3">
+        <h3>And we have created an actor</h3>
+        <ul>
+        <li>Actor = state + mailbox</li>
+        </ul>
+        <p><img src="img/actor.webp" /></p>
+        </section>
+        <section id="and-we-have-created-an-actor-1" class="level3">
+        <h3>And we have created an actor</h3>
+        <ul>
+        <li>Actor = state + mailbox</li>
+        <li>Actors basically boil down to state machines</li>
+        </ul>
+        <p><img src="img/actor_with_sm.webp" /></p>
+        </section>
+        <section id="what-can-an-actor-do" class="level3">
+        <h3>What can an actor do?</h3>
+        <ul>
+        <li>An actor can receive a message, and send a message,</li>
+        <li>An actor can spawn another actor</li>
+        </ul>
+        </section>
+        <section id="actor-architecture-benefits" class="level3">
+        <h3>Actor architecture benefits</h3>
+        <ul>
+        <li>Simple concurrency,</li>
+        <li>Simple state management,</li>
+        <li>Maxes out performances,</li>
+        <li>Value-based data model,</li>
+        <li>All state changes are local.</li>
+        </ul>
+        </section>
+        <section id="how-we-did-event-driven-in-the-end" class="level3">
+        <h3>How we did ‘event-driven’ in the end?</h3>
+        </section>
+        <section id="how-did-it-end-up" class="level3">
+        <h3>How did it end up?</h3>
+        <p><img src="img/system_01.webp" /></p>
+        </section>
+        <section id="how-did-it-end-up-1" class="level3">
+        <h3>How did it end up?</h3>
+        <p><img src="img/system_02.webp" /></p>
+        </section>
+        <section id="how-did-it-end-up-2" class="level3">
+        <h3>How did it end up?</h3>
+        <p><img src="img/system_03.webp" /></p>
+        </section>
+        <section id="how-did-it-end-up-3" class="level3">
+        <h3>How did it end up?</h3>
+        <p><img src="img/system_04.webp" /></p>
+        </section>
+        <section id="how-did-it-end-up-4" class="level3">
+        <h3>How did it end up?</h3>
+        <p><img src="img/system_05.webp" /></p>
+        </section>
+        <section id="how-did-it-end-up-5" class="level3">
+        <h3>How did it end up?</h3>
+        <p><img src="img/system_06.webp" /></p>
+        </section>
+        <section id="how-did-it-end-up-6" class="level3">
+        <h3>How did it end up?</h3>
+        <p><img src="img/system_07.webp" /></p>
+        </section>
+        <section id="how-we-did-event-driven-in-the-end-1" class="level3">
+        <h3>How we did ‘event-driven’ in the end?</h3>
+        <ul>
+        <li>All state is kept in small, bite-sized pieces inside actors,</li>
+        <li>All state changes happen on message receiving,</li>
+        <li>All outside events are converted into messages by service actors.</li>
+        <li>A Known number of actors provide services to other actors,</li>
+        <li>An Arbitrary number of strategy actors, which communicate only with service actors.</li>
+        </ul>
+        </section>
+        <section id="everything-was-going-well-util" class="level3">
+        <h3>Everything was going well util…</h3>
+        <blockquote>
+        <p>we need to implement persistence!</p>
+        </blockquote>
+        <ul>
+        <li>Nothing was persisted,</li>
+        <li>No idea how to start</li>
+        <li>ORM or not?</li>
+        </ul>
+        </section>
+        <section id="spoiler" class="level3">
+        <h3>Spoiler</h3>
+        <p>What can go wrong if we just reproduce the messages to the actor?</p>
+        </section>
+        <section id="sequential-consistency-of-messages" class="level3">
+        <h3>Sequential consistency of messages</h3>
+        <blockquote>
+        <p>If the stream of messages stays the same will state changes in the actor stay the same?</p>
+        </blockquote>
+        </section>
+        <section id="sequential-consistency-of-messages-1" class="level3">
+        <h3>Sequential consistency of messages</h3>
+        <p><img src="img/event_flow_0.webp" /></p>
+        </section>
+        <section id="sequential-consistency-of-messages-2" class="level3">
+        <h3>Sequential consistency of messages</h3>
+        <p><img src="img/event_flow_1.webp" /></p>
+        </section>
+        <section id="anyhow-what-affects-the-actors-state" class="level3">
+        <h3>Anyhow, what affects the actor’s state?</h3>
+        <ul>
+        <li>Initial state (that is what we spawn)</li>
+        <li>Messages, since its birth to the shutdown</li>
+        <li>Impure system calls</li>
+        </ul>
+        </section>
+        <section id="the-initial-state" class="level3">
+        <h3>The initial state</h3>
+        <p>Suppose that the same arguments for construction will be the same in the initial run and the rebuild run.</p>
+        </section>
+        <section id="the-messages" class="level3">
+        <h3>The messages</h3>
+        <p>Insert a database hook to every message handle</p>
+        <pre><code>
+        receive() {
+          while msg = mailbox.next() {
+            state.handle(msg)
+          }
+        }
+        </code></pre>
+        </section>
+        <section id="the-messages-1" class="level3">
+        <h3>The messages</h3>
+        <p>Insert a database hook to every message handle</p>
+        <pre><code>
+        receive() {
+          while msg = mailbox.next() {
+            state.handle(msg)
+            db.store(msg)
+          }
+        }
+        </code></pre>
+        </section>
+        <section id="database-structure" class="level3">
+        <h3>Database structure</h3>
+        <p><img src="img/storage_0.webp" /></p>
+        </section>
+        <section id="database-structure-1" class="level3">
+        <h3>Database structure</h3>
+        <ul>
+        <li>A database store after every message handle,</li>
+        <li>Every actor has its own uuid,</li>
+        <li>After the message is handled, the database stores uuid, time and a serialized message.</li>
+        </ul>
+        </section>
+        <section id="database-read" class="level3">
+        <h3>Database read</h3>
+        <ul>
+        <li>Another component that handles reading</li>
+        <li>Actor that responds with all your previous events</li>
+        <li>Handles many reads in parallel</li>
+        </ul>
+        </section>
+        <section id="database-structure-2" class="level3">
+        <h3>Database structure</h3>
+        <p><img src="img/storage_1.webp" /></p>
+        </section>
+        <section id="database" class="level3">
+        <h3>Database</h3>
+        <ul>
+        <li>We chose an embedded database</li>
+        <li>RocksDB - key/value database, facebook</li>
+        <li>Append only use case, no deletes or modifies</li>
+        <li>Sequential read, usually one pass through everything at the start of the program</li>
+        </ul>
+        </section>
+        <section id="how-to-handle-side-effects" class="level3">
+        <h3>How to handle side effects</h3>
+        <p>Side effects include</p>
+        <ul>
+        <li>Time</li>
+        <li>Random numbers</li>
+        <li>Messages sent to other actors</li>
+        </ul>
+        </section>
+        <section id="problems-with-time" class="level3">
+        <h3>Problems with time</h3>
+        <ul>
+        <li>One run starts in the morning,</li>
+        <li>Lets say at noon we restart the application.</li>
+        <li>All calls to getTime are wrong!</li>
+        </ul>
+        </section>
+        <section id="problems-with-time-1" class="level3">
+        <h3>Problems with time</h3>
+        <p><img src="img/event_flow_2.webp" /></p>
+        </section>
+        <section id="how-we-solved-it" class="level3">
+        <h3>How we solved it</h3>
+        <ul>
+        <li>Introduce time service,</li>
+        <li>Store the arrival time of every message,</li>
+        <li>Fake the time during rebuild.</li>
+        </ul>
+        </section>
+        <section id="message-handling" class="level3">
+        <h3>Message handling</h3>
+        <p>During the normal run</p>
+        <pre><code>
+        receive() {
+          while msg = mailbox.next() {
+            msg.time = time.now()
+            state.setTime(msg.time)
+            state.handle(msg)
+            db.store(msg)
+          }
+        }
+        </code></pre>
+        </section>
+        <section id="message-handling-1" class="level3">
+        <h3>Message handling</h3>
+        <p>During the rebuild run</p>
+        <pre><code>
+        receive() {
+          while msg = mailbox.next() {
+            state.setTime(msg.time)
+            state.handle(msg)
+          }
+        }
+        </code></pre>
+        </section>
+        <section id="problems-with-randomness" class="level3">
+        <h3>Problems with randomness</h3>
+        <p>Every time we call a random number, different random number is returned.</p>
+        </section>
+        <section id="problems-with-randomness-1" class="level3">
+        <h3>Problems with randomness</h3>
+        <p><img src="img/event_flow_3.webp" /></p>
+        </section>
+        <section id="how-we-solved-it-1" class="level3">
+        <h3>How we solved it</h3>
+        <ul>
+        <li>Every actor has it’s own random number generator,</li>
+        <li>Set the seed upon actor spawn,</li>
+        <li>If the seed is the same, then the sequence of random numbers are the same.</li>
+        </ul>
+        </section>
+        <section id="actor-spawning" class="level3">
+        <h3>Actor spawning</h3>
+        <p>Before:</p>
+        <pre><code>
+        spawn(args...) {
+          let mailbox = Mailbox::new()
+          let state = State::new(args...)
+          reutrn mailbox
+        }
+        </code></pre>
+        </section>
+        <section id="actor-spawning-1" class="level3">
+        <h3>Actor spawning</h3>
+        <p>After:</p>
+        <pre><code>
+        spawn(uuid, args...) {
+          let mailbox = Mailbox::new()
+          let state = State::new(args...)
+          state.randomGenerator.setSeed(uuid)
+          reutrn mailbox
+        }
+        </code></pre>
+        </section>
+        <section id="sending-messages" class="level3">
+        <h3>Sending messages</h3>
+        <ul>
+        <li>Actor <code>A</code> gets a message, and as a result sends a message to it’s buddy <code>B</code>,</li>
+        <li>Messages have been recorded during the run,</li>
+        <li>In the rebuild, B would get the same message two times, once from A and onde from the database!</li>
+        </ul>
+        </section>
+        <section id="well-that-was-easy" class="level3">
+        <h3>Well, that was easy</h3>
+        <ul>
+        <li>During the rebuild, all sends are just dropped,</li>
+        <li>State has its own sender class,</li>
+        <li>Sender is blocked until all rebuild messages are processed.</li>
+        </ul>
+        </section>
+        <section id="actor-spawning-2" class="level3">
+        <h3>Actor spawning</h3>
+        <p>After:</p>
+        <pre><code>
+        spawn(uuid, args...) {
+          let mailbox = Mailbox::new()
+          let state = State::new(args...)
+          state.randomGenerator.setSeed(uuid)
+          state.sender.block()
+          reutrn mailbox
+        }
+        </code></pre>
+        </section>
+        <section id="later-when-all-messages-are-processed" class="level3">
+        <h3>Later, when all messages are processed</h3>
+        <pre><code>
+        receive() {
+          while msg = mailbox.next() {
+            if (msg == &quot;all received&quot;) {
+              state.sender.unblock()
+            }
+            state.handle(msg)
+          }
+        }
+        </code></pre>
+        </section>
+        <section id="benchmark-results" class="level3">
+        <h3>Benchmark results</h3>
+        <p>On a fairly modern i5 laptop with NVME SSD:</p>
+        <table>
+        <tbody>
+        <tr class="odd">
+        <td>Number of actors</td>
+        <td>~1000</td>
+        </tr>
+        <tr class="even">
+        <td>Number of messages:</td>
+        <td>~5 million</td>
+        </tr>
+        <tr class="odd">
+        <td>Snapshot size:</td>
+        <td>100 MB</td>
+        </tr>
+        <tr class="even">
+        <td>Rebuild time:</td>
+        <td>1.5 minutes</td>
+        </tr>
+        </tbody>
+        </table>
+        </section>
+        <section id="further-steps" class="level3">
+        <h3>Further steps</h3>
+        </section>
+        <section id="last-slide" class="level3">
+        <h3>Last slide</h3>
+        <blockquote>
+        <p>Q&amp;A?</p>
+        </blockquote>
+        <p><strong>Thank you!</strong></p>
+        </section>
+      </div>
+
+      <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+      <script src="https://revealjs.com/lib/js/head.min.js"></script>
+      <script src="https://revealjs.com/js/reveal.js"></script>
+
+      <script>
+        jQuery('section').removeAttr('id');
+        jQuery('section[target]')
+          .map(function(i, el) {
+            jQuery(el).find(el.attributes.target.value)
+              .map(function() {
+                jQuery(this).addClass('fragment ' + el.attributes['data-fragment'].value)
+              });
+          });
+        jQuery('section[data-bg_color]')
+          .map(function(i, el) {
+            jQuery(el).attr('data-background', el.attributes['data-bg_color'].value);
+          });
+      </script>
+
+      <script>
+        // Full list of configuration options available at:
+        // https://github.com/hakimel/reveal.js#configuration
+        Reveal.initialize({
+          // Push each slide change to the browser history
+          history: true,
+
+          // Optional reveal.js plugins
+          dependencies: [
+            { src: 'https://revealjs.com/lib/js/classList.js', condition: function() { return !document.body.classList; } },
+            { src: 'https://revealjs.com/plugin/zoom-js/zoom.js', async: true },
+            { src: 'https://revealjs.com/plugin/notes/notes.js', async: true }
+          ]
+        });
+      </script>
+    </div>
+  </body>
+</html>
