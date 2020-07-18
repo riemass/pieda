@@ -13,6 +13,8 @@ title: Persistence in Event-Driven Architecture
 * main tasks are the content of this presentation,
 * not alone, work of multiple great people
 
+### Problem Statement?
+
 ### What is 'Event-Driven' anyway?
 * Events are the driving force in the app,
 * Everything that happens is a reaction to some outside action
@@ -108,15 +110,16 @@ Thread::new(|| {
 ![](img/actor_with_sm.webp)
 
 ### What can an actor do?
-* An actor can receive a message, and send a message,
-* An actor can spawn another actor
+* An actor can receive a message.
+* An actor can send a message.
+* An actor can spawn another actor.
 
 ### Actor architecture benefits
 * Simple concurrency,
-* Simple state management,
-* Maxes out performances,
-* Value-based data model,
-* All state changes are local.
+* simple state management,
+* value-based data model,
+* all state changes are local,
+* maximises performances.
 
 ### How we did 'event-driven' in the end?
 
@@ -320,7 +323,7 @@ spawn(uuid, args...) {
 buddy `B`,
 * Messages have been recorded during the run,
 * In the rebuild, B would get the same message two times, 
-once from A and onde from the database!
+once from A and once from the database!
 
 ### Well, that was easy
 * During the rebuild, all sends are just dropped,

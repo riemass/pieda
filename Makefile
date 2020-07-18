@@ -20,7 +20,7 @@ selfcontained:
 			--template=template-revealjs.html \
 			--variable theme="moon" \
 			--variable transition="linear" \
-			--variable revealjs-url="https://revealjs.com" \
+			--variable revealjs-url="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/3.6.0" \
 			--from markdown-markdown_in_html_blocks+raw_html \
 			slides.md -o docs/index.html
 	cp -r img docs
